@@ -105,6 +105,8 @@ test_transform = transforms.Compose([
 ])
 
 # Verify the dataset
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for headless servers
 from matplotlib import pyplot as plt
 monet_dir = os.path.join(ROOT, "monet_jpg")
 photo_dir = os.path.join(ROOT, "photo_jpg")
@@ -141,7 +143,8 @@ if RANK == 0:
     plt.imshow((y.permute(1, 2, 0) * 0.5 + 0.5).numpy())  # Denormalize for visualization
     plt.title("Photo Image")
     plt.axis("off")
-    # plt.show()
+    plt.savefig("dataset_preview.png", dpi=150, bbox_inches='tight')
+    plt.close()
 
 import torch
 import torch.nn as nn
@@ -224,10 +227,12 @@ class Generator(nn.Module):
         return self.model(x)
     
 # Test the generator
-G = Generator(input_shape=(3, 256, 256))
-test_result = G(torch.randn(6, 3, 256, 256))  # Add batch dimension
-print("Input shape:", (6, 3, 256, 256))
-print("Output shape:", test_result.shape)  # Should be [6, 3, 256, 256]
+if RANK == 0:
+    G = Generator(input_shape=(3, 256, 256))
+    test_result = G(torch.randn(6, 3, 256, 256))  # Add batch dimension
+    print("Input shape:", (6, 3, 256, 256))
+    print("Output shape:", test_result.shape)  # Should be [6, 3, 256, 256]
+    del G, test_result  # Free memory
 
 # Discriminator
 class Discriminator(nn.Module):
@@ -258,10 +263,12 @@ class Discriminator(nn.Module):
         return self.model(x)
     
 # Test the discriminator
-D = Discriminator(input_shape=(3, 256, 256))
-test_result = D(torch.randn(6, 3, 256, 256))  # Add batch dimension
-print("Input shape:", (6, 3, 256, 256))
-print("Output shape:", test_result.shape)  # Should be [6, 1, 16, 16]
+if RANK == 0:
+    D = Discriminator(input_shape=(3, 256, 256))
+    test_result = D(torch.randn(6, 3, 256, 256))  # Add batch dimension
+    print("Input shape:", (6, 3, 256, 256))
+    print("Output shape:", test_result.shape)  # Should be [6, 1, 16, 16]
+    del D, test_result  # Free memory
 
 # Loss functions
 import itertools
@@ -419,7 +426,8 @@ def evaluate_visually(
     generator_P2M : Union[Generator, DDP],
     dataloader : DataLoader,
     device : torch.device,
-    num_images : int = 4
+    num_images : int = 4,
+    save_path : str = "visual_eval.png"
 ) -> None:
     generator_M2P.eval()
     generator_P2M.eval()
@@ -450,7 +458,8 @@ def evaluate_visually(
                 fontsize=14, pad=20
             )
             plt.axis("off")
-            plt.show()
+            plt.savefig(save_path, dpi=150, bbox_inches='tight')
+            plt.close()
             break
     generator_M2P.train()
     generator_P2M.train()
@@ -542,8 +551,8 @@ for epoch in range(num_epochs):
         print(f"Epoch [{epoch+1}/{num_epochs}] - Average Loss G: {avg_loss_G:.4f}, Average Loss D: {avg_loss_D:.4f}")
 
     # Evaluate visually every 5 epochs
-    # if is_main_process(rank) and (epoch + 1) % 5 == 0:
-    #     evaluate_visually(generator_M2P, generator_P2M, dataloader, device)
+    if is_main_process(rank) and (epoch + 1) % 5 == 0:
+        evaluate_visually(generator_M2P, generator_P2M, dataloader, device, save_path=f"visual_epoch_{epoch+1}.png")
 
     # Save model checkpoints every 5 epochs
     # if (epoch + 1) % 5 == 0:
@@ -626,10 +635,18 @@ if is_kaggle:
     generate_img_dir = "/kaggle/working/generated_images"
 else:
     generate_img_dir = "./generated_images"
+
+if distributed and dist.is_initialized():
+    dist.barrier()
+
 if is_main_process(rank):
     test_dataset = TestMonetPhotoDataset(photo_dir=photo_dir, transform=test_transform)
     test_dataloader = DataLoader(test_dataset, batch_size=16, shuffle=False, num_workers=4, pin_memory=True, persistent_workers=True, prefetch_factor=2)
-    translate_image(generator_P2M, test_dataloader, device=device, output_dir=generate_img_dir, max_images=7038)
+    inference_generator_P2M = generator_P2M.module if isinstance(generator_P2M, DDP) else generator_P2M
+    translate_image(inference_generator_P2M, test_dataloader, device=device, output_dir=generate_img_dir, max_images=7038)
     create_zip_from_directory(generate_img_dir, "images.zip")
+
+if distributed and dist.is_initialized():
+    dist.barrier()
 
 cleanup_distributed(distributed)
