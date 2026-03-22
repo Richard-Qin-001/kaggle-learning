@@ -542,8 +542,8 @@ for epoch in range(num_epochs):
         print(f"Epoch [{epoch+1}/{num_epochs}] - Average Loss G: {avg_loss_G:.4f}, Average Loss D: {avg_loss_D:.4f}")
 
     # Evaluate visually every 5 epochs
-    if is_main_process(rank) and (epoch + 1) % 5 == 0:
-        evaluate_visually(generator_M2P, generator_P2M, dataloader, device)
+    # if is_main_process(rank) and (epoch + 1) % 5 == 0:
+    #     evaluate_visually(generator_M2P, generator_P2M, dataloader, device)
 
     # Save model checkpoints every 5 epochs
     # if (epoch + 1) % 5 == 0:
