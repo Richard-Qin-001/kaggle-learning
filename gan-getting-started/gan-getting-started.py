@@ -205,9 +205,7 @@ class Generator(nn.Module):
             self.residual_blocks.add_module(
                 f"upsample_{out_features}",
                 nn.Sequential(
-                    nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
-                    nn.ReflectionPad2d(1),
-                    nn.Conv2d(in_features, out_features, kernel_size=3, stride=1, padding=0),
+                    nn.ConvTranspose2d(in_features, out_features, kernel_size=4, stride=2, padding=1),
                     nn.InstanceNorm2d(out_features),
                     nn.ReLU(inplace=True)
                 )
