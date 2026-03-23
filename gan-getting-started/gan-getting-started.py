@@ -523,7 +523,7 @@ def save_model(model, filepath):
         torch.save(model.state_dict(), filepath)
 
 # Train the model
-num_epochs = 23
+num_epochs = 20
 for epoch in range(num_epochs):
     if distributed and train_sampler is not None:
         train_sampler.set_epoch(epoch)
