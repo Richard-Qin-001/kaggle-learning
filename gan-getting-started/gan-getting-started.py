@@ -491,7 +491,7 @@ train_sampler: Optional[DistributedSampler] = (
 )
 dataloader = DataLoader(
     dataset,
-    batch_size=12,
+    batch_size=10,
     shuffle=(train_sampler is None),
     sampler=train_sampler,
     num_workers=2,
@@ -525,7 +525,7 @@ def save_model(model, filepath):
         torch.save(model.state_dict(), filepath)
 
 # Train the model
-num_epochs = 25
+num_epochs = 23
 for epoch in range(num_epochs):
     if distributed and train_sampler is not None:
         train_sampler.set_epoch(epoch)
