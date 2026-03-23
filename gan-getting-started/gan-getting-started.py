@@ -148,6 +148,7 @@ if RANK == 0:
 
 import torch
 import torch.nn as nn
+torch.set_float32_matmul_precision('medium')  # Faster matmul on T4 GPUs
 
 class ResidualBlock(nn.Module):
     def __init__(self, in_channels : int) -> None:
@@ -204,7 +205,9 @@ class Generator(nn.Module):
             self.residual_blocks.add_module(
                 f"upsample_{out_features}",
                 nn.Sequential(
-                    nn.ConvTranspose2d(in_features, out_features, kernel_size=3, stride=2, padding=1, output_padding=1),
+                    nn.Upsample(scale_factor=2, mode='bilinear', align_corners=True),
+                    nn.ReflectionPad2d(1),
+                    nn.Conv2d(in_features, out_features, kernel_size=3, stride=1, padding=0),
                     nn.InstanceNorm2d(out_features),
                     nn.ReLU(inplace=True)
                 )
@@ -488,7 +491,7 @@ train_sampler: Optional[DistributedSampler] = (
 )
 dataloader = DataLoader(
     dataset,
-    batch_size=10,
+    batch_size=12,
     shuffle=(train_sampler is None),
     sampler=train_sampler,
     num_workers=2,
@@ -522,7 +525,7 @@ def save_model(model, filepath):
         torch.save(model.state_dict(), filepath)
 
 # Train the model
-num_epochs = 30
+num_epochs = 25
 for epoch in range(num_epochs):
     if distributed and train_sampler is not None:
         train_sampler.set_epoch(epoch)
