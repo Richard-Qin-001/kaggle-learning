@@ -201,3 +201,5 @@ submissions/
 *.png
 *.tfrec
 outputs/
+*.npy
+catboost_info/
